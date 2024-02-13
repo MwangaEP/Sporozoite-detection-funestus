@@ -172,7 +172,11 @@ def visualize(figure_name, classes, true, predicted):
 #%%
 # loading full spectra dataset
 
-full_data_df = pd.read_csv(os.path.join("..", "Data", "Biological_attr.dat", delimiter = '\t'))
+full_data_df = pd.read_csv(
+                            os.path.join("..", "Data", "Biological_attr.dat"), 
+                            delimiter = '\t'
+                        )
+                        
 full_data_df.head()
 
 #%%
@@ -262,33 +266,32 @@ print('shape of y : {}'.format(y.shape))
 
 rus = NearMiss(version = 2, n_neighbors = 3)
 X_res, y_res = rus.fit_resample(X, y)
-y_res_count = collections.Counter(y_res)
-print(y_res_count)
+print(collections.Counter(y_res))
+
+#  Get the indices of the samples that were not resampled
+indices_not_resampled = np.setdiff1d(
+                                        np.arange(len(X)), 
+                                        rus.sample_indices_
+                                    )
+
+# Create a DataFrame with the remaining samples
+remaining_samples = pd.DataFrame(
+                                    X.iloc[indices_not_resampled], 
+                                    columns = X.columns
+                                )
+
+remaining_samples['infection_status'] = y.iloc[indices_not_resampled]
+
+# shift column 'Name' to first position
+first_column = remaining_samples.pop('infection_status')
+  
+# insert column using insert(position,column_name, first_column) function
+remaining_samples.insert(0, 'infection_status', first_column)
 
 
 #%%
 
-# split data
-
-# rs = ShuffleSplit(n_splits=5, test_size=0.1, random_state = np.random.randint(0, 81478))
-# rs.get_n_splits(X)
-
-# print(rs)
-
-# for train_index, val_index in rs.split(X_res):
-#    print("TRAIN:", train_index, "VALIDATION:", val_index)
-
-# print(train_index.shape, val_index.shape)
-
-# # saving data to disk train and validation data to disk
-# # train data
-# train_data = infection_data_df.iloc[train_index,:]
-# train_data.to_csv("C:\Mannu\Projects\Sporozoite Spectra for An funestus s.s\ML_final_analysis\Data\_train_df.csv")
-
-# # validation/test data
-# val_data = infection_data_df.iloc[val_index,:]
-# val_data.to_csv("C:\Mannu\Projects\Sporozoite Spectra for An funestus s.s\ML_final_analysis\Data\_val_df.csv")
-
+# Split data
 
 X_train, X_test, y_train, y_test = train_test_split(
                                                         X_res, 
@@ -303,18 +306,30 @@ print('The shape of y train index : {}'.format(y_train.shape))
 print('The shape of X val index : {}'.format(X_test.shape))
 print('The shape of y val index : {}'.format(y_test.shape))
 
+# prepare training data
+training_temp = pd.concat(
+                            [
+                                y_train, 
+                                X_train
+                            ],
+                            axis = 1
+                        )
+
+training_df = pd.concat(
+                            [
+                                training_temp, 
+                                remaining_samples
+                            ],
+                            axis = 0
+                        ).reset_index(drop = True)   
+
+#%%
+
+# Standardisation
+
 X_new = np.asarray(X_train)
 y_new = np.asarray(y_train)
 print('y labels : {}'.format(np.unique(y_new)))
-
-# define X (matrix of features) and y (list of labels) from train data
-
-# X = np.asarray(train_data.iloc[:,:-1])
-# y = np.asarray(train_data['infection_status'])
-# print('y labels : {}'.format(np.unique(y)))
-
-# # counting class distribution 
-# print(Counter(train_data["infection_status"]))
 
 # standardisation 
 scaler = StandardScaler().fit(X = X_new)
@@ -458,7 +473,7 @@ plt.savefig(
 
 ## Set validation procedure
 
-num_rounds = 5 # increase this to 5 or 10 once code is bug-free
+num_rounds = 50 # increase this to 5 or 10 once code is bug-free
 scoring = 'accuracy' # score model accuracy
 
 # prepare matrices of results
@@ -491,14 +506,20 @@ random_grid = {
                 'colsample_bytree': bytree
             }
 
+# Prepare data
+X = np.asarray(training_df.iloc[:,1:])
+y = np.asarray(training_df['infection_status'])
+
 for round in range (num_rounds):
 
     SEED = np.random.randint(0, 81478)
 
+    X_resampled, y_resampled = rus.fit_resample(X, y)
+
     # cross validation and splitting of the validation set
-    for train_index, test_index in kf.split(X_new, y_new):
-        X_train_set, X_val = X_new[train_index], X_new[test_index]
-        y_train_set, y_val = y_new[train_index], y_new[test_index]
+    for train_index, test_index in kf.split(X_resampled, y_resampled):
+        X_train_set, X_val = X_resampled[train_index], X_resampled[test_index]
+        y_train_set, y_val = y_resampled[train_index], y_resampled[test_index]
 
             
         # standardise features using standard scaler
@@ -671,7 +692,7 @@ print(crf_acc_distrib)
 #%%
 # plotting accuracy distribution
 plt.figure(figsize = (2.25,3))
-sns.distplot(
+sns.displot(
                 crf_acc_distrib, 
                 kde = False, 
                 bins = 12
@@ -842,7 +863,7 @@ with open(generate_path('important_wavenumbers.txt'), 'w') as outfile:
 """
 
 # load age data
-df_age = pd.read_csv(os.path.join("..", "Data", "wild_funestus_age.dat", delimiter = '\t'))
+df_age = pd.read_csv(os.path.join("..", "Data", "wild_funestus_age.dat"), delimiter = '\t')
 
 df_age = df_age.query("Cat3 == '14D'")
 df_age = df_age.drop(
@@ -961,6 +982,7 @@ cr_full_wn_val_age.to_csv(generate_path("classification_report_full_wn_val_age.c
     Use PCR model to predict elisa data
 """
 # load ELISA infection data
+
 elisa_df = pd.read_csv(os.path.join("..", "Data", "sporozoite_full.csv"))
 elisa_df.head()
 

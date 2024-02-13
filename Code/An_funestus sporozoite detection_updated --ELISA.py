@@ -151,7 +151,7 @@ def plot_confusion_matrix(
 #%%
 
 #  Define the base directory
-base_directory = r"C:\Mannu\Projects\Sporozoite Spectra for An funestus s.s\ML_final_analysis\Results\ELISA model"
+base_directory = r"C:\Mannu\Projects\Sporozoite Spectra for An funestus s.s\ML_final_analysis\Results\ELISA model_1"
 
 # Create a function to generate paths within the base directory
 def generate_path(*args):
@@ -185,11 +185,29 @@ X
 
 rus = NearMiss(version = 2, n_neighbors = 3)
 X_res, y_res = rus.fit_resample(X, y)
-y_res_count = collections.Counter(y_res)
-print(y_res_count)
+print(collections.Counter(y_res))
 
-# Standardise inputs using standard scaler
+#  Get the indices of the samples that were not resampled
+indices_not_resampled = np.setdiff1d(
+                                        np.arange(len(X)), 
+                                        rus.sample_indices_
+                                    )
 
+# Create a DataFrame with the remaining samples
+remaining_samples = pd.DataFrame(
+                                    X.iloc[indices_not_resampled], 
+                                    columns = X.columns
+                                )
+
+remaining_samples['Sporozoite'] = y.iloc[indices_not_resampled]
+
+# shift column 'Name' to first position
+first_column = remaining_samples.pop('Sporozoite')
+  
+# insert column using insert(position,column_name, first_column) function
+remaining_samples.insert(0, 'Sporozoite', first_column)
+
+# data splitting 
 X_train, X_val, y_train, y_val = train_test_split(
                                                     X_res, 
                                                     y_res, 
@@ -203,13 +221,33 @@ print('The shape of y train index : {}'.format(y_train.shape))
 print('The shape of X val index : {}'.format(X_val.shape))
 print('The shape of y val index : {}'.format(y_val.shape))
 
-X = np.asarray(X_train)
-y = np.asarray(y_train)
+
+# prepare training data
+training_temp = pd.concat(
+                            [
+                                y_train, 
+                                X_train
+                            ],
+                            axis = 1
+                        )
+
+training_df = pd.concat(
+                            [
+                                training_temp, 
+                                remaining_samples
+                            ],
+                            axis = 0
+                        ).reset_index(drop = True)                  
+
+#%%
+# standardisation 
+
+X_new = np.asarray(X_train)
+y_new = np.asarray(y_train)
 print('y labels : {}'.format(np.unique(y)))
 
-# standardisation 
-scl = StandardScaler().fit(X = X)
-X_new  = scl.transform(X = X)
+scl = StandardScaler().fit(X = X_new)
+X_scl  = scl.transform(X = X_new)
 
 #%%
 
@@ -284,6 +322,7 @@ models.append(
 
 
 #%%
+
 # comparative evaluation of different classifiers
 results = []
 names = []
@@ -291,8 +330,8 @@ names = []
 for name, model in models:
     cv_results = cross_val_score(
                                     model, 
-                                    X_new, 
-                                    y, 
+                                    X_scl, 
+                                    y_new, 
                                     cv = kf, 
                                     scoring = scoring
                                 )
@@ -352,7 +391,7 @@ plt.savefig(
 
 ## Set validation procedure
 num_folds = 5 # split training set into 5 parts for validation
-num_rounds = 5 # increase this to 5 or 10 once code is bug-free
+num_rounds = 50 # increase this to 5 or 10 once code is bug-free
 # seed = 4 # pick any integer. This ensures reproducibility of the tests
 scoring = 'accuracy' # score model accuracy
 
@@ -383,17 +422,23 @@ random_grid = {
                 'min_child_weight': child_weight, 
                 'gamma': gamma, 
                 'colsample_bytree': bytree
-            }
+            } 
+
+# Prepare data 
+X = np.asarray(training_df.iloc[:,1:])
+y = np.asarray(training_df['Sporozoite'])
 
 # under-sample over-represented classes (Negative class)
 
 for round in range (num_rounds):
     SEED = np.random.randint(0, 81478)
+
+    X_resampled, y_resampled = rus.fit_resample(X, y)
     
     # cross validation and splitting of the validation set
-    for train_index, test_index in kf.split(X, y):
-        X_train, X_test = X[train_index], X[test_index]
-        y_train, y_test = y[train_index], y[test_index]
+    for train_index, test_index in kf.split(X_resampled, y_resampled):
+        X_train, X_test = X_resampled[train_index], X_resampled[test_index]
+        y_train, y_test = y_resampled[train_index], y_resampled[test_index]
 
         
         # standardise features using standard scaler
@@ -567,7 +612,11 @@ print(crf_acc_distrib)
 #%%
 # plotting accuracy distribution
 plt.figure(figsize=(2.25,3))
-sns.distplot(crf_acc_distrib, kde=False, bins=12)
+sns.displot(
+                crf_acc_distrib, 
+                kde = False, 
+                bins = 12
+            )
 # plt.savefig("lgr_acc_distrib.png", bbox_inches="tight")
 
 #%%
@@ -669,7 +718,7 @@ plt.savefig(
 
 # Transform data using the mean and standard deviation from the model training data
 
-trans_X_val = scl.transform(X = X_val)
+trans_X_val = scl.transform(X = np.array(X_val))
 
 # Predict test set
 
@@ -734,7 +783,7 @@ with open(generate_path('important_wavenumbers.txt'), 'w') as outfile:
 """
 
 # load age data
-df_age = pd.read_csv(os.path.join("..", "Data", "wild_funestus_age.dat", delimiter = '\t'))
+df_age = pd.read_csv(os.path.join("..", "Data", "wild_funestus_age.dat"), delimiter = '\t')
 
 df_age = df_age.query("Cat3 == '14D'")
 df_age = df_age.drop(['Cat1', 'Cat2', 'Cat3', 'Cat4', 'StoTime'], axis = 1)
@@ -754,12 +803,12 @@ df_age.head()
 
 new_val_df = pd.concat([y_val, X_val], axis = 1)
 
-# shift column 'Name' to first position
-first_column_ = new_val_df.pop('Sporozoite')
+# # shift column 'Name' to first position
+# first_column_ = new_val_df.pop('Sporozoite')
   
-# insert column using insert(position,column_name,
-# first_column) function
-new_val_df.insert(0, 'Sporozoite', first_column_)
+# # insert column using insert(position,column_name,
+# # first_column) function
+# new_val_df.insert(0, 'Sporozoite', first_column_)
 new_val_df
 
 #%%
@@ -774,9 +823,9 @@ new_data_age_df = pd.concat(
                                 join = 'outer'
                             )
 
-print(new_data_age_df)
-print(collections.Counter(new_data_age_df['Sporozoite']))
 
+print(collections.Counter(new_data_age_df['Sporozoite']))
+new_data_age_df
 
 #%%
 
@@ -785,8 +834,7 @@ y_val_2 = new_data_age_df["Sporozoite"] # vector of labels
 print(collections.Counter(y_val_2))
 
 X_res_val, y_res_val = rus.fit_resample(X_val_2, y_val_2)
-y_res_count = collections.Counter(y_res_val)
-print(y_res_count)
+print(collections.Counter(y_res_val))
 
 # standardize data
 X_res_val_trans = scl.transform(np.asarray(X_res_val))
@@ -848,7 +896,7 @@ cr_full_wn_val_age.to_csv(generate_path("classification_report_full_wn_val_age.c
 """
 # Importing the full spectra dataset with biological attributes 
 
-full_bio_attr_df = pd.read_csv(os.path.join("..", "Data", "Biological_attr.dat", delimiter = '\t'))
+full_bio_attr_df = pd.read_csv(os.path.join("..", "Data", "Biological_attr.dat"), delimiter = '\t')
 full_bio_attr_df.head()
 
 #%%
