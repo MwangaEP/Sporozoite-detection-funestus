@@ -77,7 +77,7 @@ plt.rcParams["figure.figsize"] = [6,4]
 #%%
 
 #  Define the base directory
-base_directory = r"C:\Mannu\Projects\Sporozoite Spectra for An funestus s.s\ML_final_analysis\Results\ELISA_PCR"
+base_directory = r"C:\Mannu\Projects\Sporozoite Spectra for An funestus s.s\ML_final_analysis\Results\ELISA_PCR_final"
 
 # Create a function to generate paths within the base directory
 def generate_path(*args):
@@ -732,20 +732,132 @@ plt.xlabel("Feature importance", weight = 'bold')
 # plt.axvline(x=featimp_global_mean, color="r", ls="--", dash_capstyle="butt")
 sns.despine()
 
-# Add mean accuracy of best models to plots
-plt.annotate("Average Accuracy:\n{0:.3f} ± {1:.3f}".format(
-                                                            crf_acc_distrib.mean()[0], 
-                                                            crf_acc_distrib.sem()[0]
-                                                            ), 
-                                                            xy = (0.06, 0), 
-                                                            color="k"
-                                                        )
+# # Add mean accuracy of best models to plots
+# plt.annotate("Average Accuracy:\n{0:.3f} ± {1:.3f}".format(
+#                                                             crf_acc_distrib.mean()[0], 
+#                                                             crf_acc_distrib.sem()[0]
+#                                                             ), 
+#                                                             xy = (0.06, 0), 
+#                                                             color="k"
+#                                                         )
+
+# plt.savefig(
+#                 generate_path("_feature_impces_full_wn.png"), 
+#                 dpi = 500, 
+#                 bbox_inches = "tight"
+#             )
+
+#%%
+# Another way to plot  feature importances
+
+average_spectra = pd.DataFrame(
+                                training_df.iloc[:,1:].mean().T
+                            ).reset_index()
+
+average_spectra.rename(
+                        columns = {'index':'wavenumber', 0:'absorbance'}, 
+                        inplace = True
+                    )
+
+
+# Average_spectra is your DataFrame with columns "wavenumber" and "absorbance"
+wavenumbers = pd.to_numeric(average_spectra['wavenumber'])
+absorbances = average_spectra['absorbance']
+
+# We plot the result of the analysis and the selected wavenumbers
+fig_wid = 25
+fig_hei = 8
+
+zord = 100
+# Create a figure and axis
+# fig = plt.figure(facecolor = 'w')
+fig, ax = plt.subplots(
+                        figsize = (fig_wid, fig_hei), 
+                        facecolor = '#dddddd'
+                    )
+
+# Plot the spectra
+for i in range(len(wavenumbers)):
+    ax.plot(
+                wavenumbers.sort_values(ascending = False), 
+                absorbances, 
+                'r',
+                alpha = 0.8,
+                label=f'Spectrum {i}', 
+                zorder = zord
+            )
+
+    zord -= 1
+
+# Set labels and title
+ax.set_xlabel('Wavenumber')
+ax.set_ylabel('Absorbance')
+plt.xlim(4000, 500)
+
+new_wavenumbers = pd.to_numeric(all_featimp["mean"][-50:].index)
+feat_imp_mean = all_featimp["mean"][-50:].values
+
+# Bar plot
+# Normalize and scale feat_imp_mean
+normalized_feat_imp_mean = feat_imp_mean / feat_imp_mean.max() * absorbances.max()
+feat_imp_mean_scl = normalized_feat_imp_mean * 10
+
+# Create a secondary y-axis
+ax2 = ax.twinx()
+# ax2.bar(new_wavenumbers, feat_imp_mean_scl, color='blue', alpha=0.7, width=10, align='center', label='Feature Importance')
+# ax2.set_ylabel('Feature Importance (Scaled)')
+# Bar plot on the secondary y-axis with fading color
+
+# Bar plot on the secondary y-axis with single color (color blind friendly)
+ax2.bar(
+            new_wavenumbers, 
+            feat_imp_mean_scl, 
+            color = 'dodgerblue', 
+            alpha = 0.8, 
+            width = 10, 
+            align = 'center', 
+            label = 'Feature Importance'
+        )
+
+ax2.set_ylabel('Feature Importance (Scaled)')
+
+# # Then the scores
+# for n, i in enumerate(new_wavenumbers):
+#     if feat_imp_mean[n] > 0.001:
+#         try:
+
+#             ppp = wavenumbers.index[i]
+#             sc_y = np.mean(np.transpose(absorbances)[ppp])
+#             if n < 25:
+#                 tmp = Ellipse((i, sc_y), feat_imp_mean[n](wavenumbers[-1] - wavenumbers[0])*fig_hei/fig_wid, feat_imp_mean[n](0.30-0), color='paleturquoise', ec = 'black', zorder = zord)
+#             else:
+#                 tmp = Ellipse((i, sc_y), feat_imp_mean[n](wavenumbers[-1] - wavenumbers[0])*fig_hei/fig_wid, feat_imp_mean[n](0.30-0), color='paleturquoise', ec = 'black', zorder = zord)
+#             ax.add_patch(tmp)
+#             zord -= 1
+#         except ValueError:
+#             continue
+
+
+
+# # Interpolate feat_imp_mean onto the existing wavenumbers range
+# interp_feat_imp = np.interp(wavenumbers, new_wavenumbers, feat_imp_mean)
+
+# normalized_feat_imp_mean = feat_imp_mean / feat_imp_mean.max() * absorbances.max()
+
+# # for wavenumber, mean_value, norm_mean in zip(new_wavenumbers, interp_feat_imp, normalized_feat_imp_mean):
+# #     ax.scatter(wavenumber, mean_value, s=norm_mean * 500, c='red', alpha=0.5, label='Mean Values')
+
+
+# # Scatter plot along the line
+# for wavenumber, mean_value, norm_mean in zip(new_wavenumbers, interp_feat_imp, normalized_feat_imp_mean):
+#     ax.scatter(wavenumber, mean_value, s=norm_mean * 1000, c='red', alpha=0.8, label='Mean Values')
 
 plt.savefig(
-                generate_path("_feature_impces_full_wn.png"), 
+                generate_path("_feature_impces.png"), 
                 dpi = 500, 
                 bbox_inches = "tight"
             )
+
 
 #%%
 # Predict validation data
