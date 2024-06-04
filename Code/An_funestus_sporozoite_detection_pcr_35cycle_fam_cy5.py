@@ -79,7 +79,7 @@ plt.rcParams["figure.figsize"] = [6,4]
 #%%
 
 #  Define the base directory
-base_directory = r"C:\Mannu\Projects\Sporozoite Spectra for An funestus s.s\ML_final_analysis\Results\PCR model_final"
+base_directory = r"C:\Mannu\Projects\Sporozoite Spectra for An funestus s.s\ML_final_analysis\Results\PCR_test"
 
 # Create a function to generate paths within the base directory
 def generate_path(*args):
@@ -252,6 +252,52 @@ infection_data_df = infection_data_df.drop(
                                         )
 infection_data_df
 
+#%%
+# Plot average spectra
+
+# calculate the mean of each class to plot the average spectra 
+
+# infectious mosquito
+Infectious = infection_data_df.loc[infection_data_df['infection_status'] == 'Positive']
+Infectious = pd.DataFrame(Infectious.iloc[:,:-1].mean().T).reset_index()
+Infectious.rename(columns = {'index':'wavenumber', 0:'absorbance'}, inplace = True)
+
+# Non-infectious mosquitoes
+Non_infectious = infection_data_df.loc[infection_data_df['infection_status'] == 'Negative']
+Non_infectious = pd.DataFrame(Non_infectious.iloc[:,:-1].mean().T).reset_index()
+Non_infectious.rename(columns = {'index':'wavenumber', 0:'absorbance'}, inplace = True)
+
+# plotting
+sns.set(context = 'paper',
+        style = 'white',
+        palette = 'deep',
+        font_scale = 2.0,
+        color_codes = True,
+        rc = ({'font.family': 'Dejavu Sans'}))
+plt.figure(figsize = (8, 4))
+
+plt.plot(
+            pd.to_numeric(Infectious['wavenumber']).sort_values(ascending = False), 
+            Infectious['absorbance']
+        )
+
+plt.plot(
+            pd.to_numeric(Non_infectious['wavenumber']).sort_values(ascending = False), 
+            Non_infectious['absorbance']
+        )
+
+plt.legend(['Infectious', 'Non infectious'])
+plt.xlabel("Wavenumbers / cm-1", weight = 'bold')
+plt.ylabel("Absorbance", weight = 'bold')
+plt.xlim(4000, 500)
+plt.yticks(np.arange(0, 0.25 + .05, step = .05))
+
+plt.savefig(
+                generate_path("Averaged_graph"), 
+                dpi = 500, 
+                bbox_inches = "tight"
+            )
+
 # %%
 
 # define X (matrix of features) and y (list of labels)
@@ -267,6 +313,11 @@ print('shape of y : {}'.format(y.shape))
 rus = NearMiss(version = 2, n_neighbors = 3)
 X_res, y_res = rus.fit_resample(X, y)
 print(collections.Counter(y_res))
+
+# rus = RandomUnderSampler()
+# X_res, y_res = rus.fit_resample(X, y)
+# print(collections.Counter(y_res))
+
 
 #  Get the indices of the samples that were not resampled
 indices_not_resampled = np.setdiff1d(
@@ -447,19 +498,47 @@ results_df.rename(
                     inplace = True
                 )
 
-# plotting
-plt.rcParams["figure.figsize"] = [6,4]
 
+# plotting
+sns.set(context = 'paper',
+        style = 'white',
+        palette = 'deep',
+        font_scale = 2.0,
+        color_codes = True,
+        rc = ({'font.family': 'Dejavu Sans'}))
+plt.figure(figsize = (5, 3))
+
+# Create boxplot
 sns.boxplot(
                 x = results_df['Model'], 
                 y = results_df['Accuracy']
             )
-sns.despine(offset = 10, trim = True)
-# plt.title("Algorithm comparison", weight="bold")
-plt.xticks(rotation = 90)
-plt.yticks(np.arange(0.2, 1.0 + .05, step = 0.2))
+
+sns.despine(offset = 10, trim = False)
+# # plt.title("Algorithm comparison", weight="bold")
+# plt.xticks(rotation = 90)
+# plt.yticks(np.arange(0.0, 1.0 + .05, step = 0.2))
+# plt.xlabel(' ')
+# plt.ylabel('Accuracy', weight = 'bold');
+# plt.savefig(
+#                 generate_path("_algo_selection_.png"), 
+#                 dpi = 500, 
+#                 bbox_inches = "tight"
+#             )
+
+# Adjust spines (axes lines)
+ax = plt.gca()
+ax.spines['left'].set_visible(True)  # Show left spine
+ax.spines['bottom'].set_visible(True)  # Show bottom spine
+ax.spines['top'].set_visible(False)  # Show left spine
+ax.spines['right'].set_visible(False)  # Show bottom spine
+
+# Customize plot appearance
+plt.xticks(rotation=90)
+plt.yticks(np.arange(0.0, 1.0 + .05, step=0.2))
 plt.xlabel(' ')
-plt.ylabel('Accuracy', weight = 'bold');
+plt.ylabel('Accuracy', weight='bold')
+
 plt.savefig(
                 generate_path("_algo_selection_.png"), 
                 dpi = 500, 
@@ -507,8 +586,8 @@ random_grid = {
             }
 
 # Prepare data
-X = np.asarray(training_df.iloc[:,1:])
-y = np.asarray(training_df['infection_status'])
+X = np.asarray(training_temp.iloc[:,1:])
+y = np.asarray(training_temp['infection_status'])
 
 for round in range (num_rounds):
 
@@ -1160,3 +1239,50 @@ cr_full_wn_val_elisa = pd.read_fwf(io.StringIO(cr_full_wn_val_elisa), header = 0
 cr_full_wn_val_elisa = cr_full_wn_val_elisa.iloc[0:]
 cr_full_wn_val_elisa.to_csv(generate_path("classification_report_full_wn_val_elisa.csv"))
 
+#%%
+
+# Plot EIR
+EIR_df = pd.DataFrame({
+    'Scenario': ['Low BR', 'Low BR', 'Low BR', 'Low BR', 'High BR', 'High BR', 'High BR', 'High BR'],
+    'Method': ['PCR', 'MIRS-PCR model', 'ELISA', 'MIRS-ELISA model', 'PCR', 'MIRS-PCR model', 'ELISA', 'MIRS-ELISA model'],
+    'EIR': [87.6, 100.4, 74.8, 78.5, 723.6, 829.1, 618.1, 648.2]
+})
+
+EIR_df
+
+# %%
+# plotting
+sns.set(context = 'paper',
+        style = 'white',
+        palette = 'deep',
+        font_scale = 2.0,
+        color_codes = True,
+        rc = ({'font.family': 'Dejavu Sans'}))
+plt.figure(figsize = (5, 3))
+
+# Create the catplot and store it in a variable
+plot = sns.catplot(
+                        x = 'Scenario', 
+                        y = 'EIR', 
+                        hue = 'Method', 
+                        kind = 'strip', 
+                        data = EIR_df, 
+                        dodge = True, 
+                        height = 5, 
+                        size = 10,
+                        aspect = 1.3
+                    )
+                    
+
+# Access the legend object and set the title to None
+plot._legend.set_title('')
+plt.yticks(np.arange(0, 900 + .05, step = 100))
+plt.xlabel(" ")
+plt.ylabel("EIR", weight = "bold")
+plt.savefig(
+                generate_path("EIR.png"), 
+                dpi = 500, 
+                bbox_inches = "tight"
+            )
+
+# %%

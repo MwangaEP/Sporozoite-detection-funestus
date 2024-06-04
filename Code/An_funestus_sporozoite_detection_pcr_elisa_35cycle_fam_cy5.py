@@ -142,16 +142,16 @@ def plot_confusion_matrix(
     plt.tight_layout()
     plt.ylabel('True label', weight = 'bold')
     plt.xlabel('Predicted label', weight = 'bold')
-    plt.savefig(
-                    generate_path(
-                                    "Confusion_Matrix_" 
-                                    + figure_name 
-                                    + "_" 
-                                    + ".png"
-                                ), 
-                                dpi = 500, 
-                                bbox_inches = "tight"
-                )
+    # plt.savefig(
+    #                 generate_path(
+    #                                 "Confusion_Matrix_" 
+    #                                 + figure_name 
+    #                                 + "_" 
+    #                                 + ".png"
+    #                             ), 
+    #                             dpi = 500, 
+    #                             bbox_inches = "tight"
+    #             )
 
 #%%
 
@@ -169,7 +169,7 @@ def visualize(figure_name, classes, true, predicted):
 
 
 #%%
-full_data_df = pd.read_csv(os.path.join("..", "Data", "Biological_attr.dat", delimiter= '\t'))
+full_data_df = pd.read_csv(os.path.join("..", "Data", "Biological_attr.dat"), delimiter= '\t')
 full_data_df.head()
 
 #%%
@@ -190,6 +190,7 @@ print('The shape of head and thorax data : {}'.format(head_and_thrx_df.shape))
 head_and_thrx_df.head()
 
 # %%
+
 # Import PCR results which contains the ID's of positive mosquitoes 
 pcr_data_df = pd.read_csv(os.path.join("..", "Data", "PCR data-35cycles-Cy5-FAM.csv"))
 pcr_data_df.head()
@@ -208,15 +209,26 @@ positive_samples_df['infection_status'] = 'Positive'
 # Index all the negative from the head and thorax data
 # Select all rows not in the list
 
-negative_samples_df = head_and_thrx_df[~head_and_thrx_df['ID'].isin(positive_samples)]
-negative_samples_df['infection_status'] = 'Negative'
+# Import PCR results which contains the ID's of positive mosquitoes 
+pcr_data_df_neg = pd.read_csv(os.path.join("..", "Data", "PCR data-35cycles-Cy5-FAM-neg.csv"))
+pcr_data_df_neg.head()
+
+neg_samples = pcr_data_df_neg['Sample']#.astype('int64')
+neg_samples_df = head_and_thrx_df.query("ID in @neg_samples")
+
+# create a new column in positive samples dataframe and name the samples as positives
+neg_samples_df['infection_status'] = 'Negative'
+
+
+# negative_samples_df = head_and_thrx_df[~head_and_thrx_df['ID'].isin(positive_samples)]
+# negative_samples_df['infection_status'] = 'Negative'
 
 # %%
 # Concatinating positive and negative dataframes together
 infection_data_df = pd.concat(
                                 [
                                     positive_samples_df, 
-                                    negative_samples_df
+                                    neg_samples_df
                                 ], 
                                 axis = 0, 
                                 join = 'outer'
